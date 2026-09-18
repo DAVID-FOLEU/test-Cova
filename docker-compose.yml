@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # Backend Spring Boot
+  backend:
+    build: ./backend
+    container_name: springboot-backend
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      JWT_SECRET: ${JWT_SECRET}
+
+  # Frontend React / Vite
+  frontend:
+    build: ./frontend
+    container_name: react-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+ # Application Mobile (Version Web Flutter)
+  mobile:
+    build: ./mobile
+    container_name: flutter-mobile-web
+    restart: always
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend     

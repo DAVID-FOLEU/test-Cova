@@ -1,0 +1,68 @@
+# ==========================================
+# 1. FICHIERS ET DOSSIERS SYSTÈME / IDE
+# ==========================================
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# IntelliJ / Eclipse
+.idea/
+*.iml
+*.iws
+*.ipr
+.settings/
+.project
+.classpath
+
+# ==========================================
+# 2. BACKEND : JAVA / SPRING BOOT
+# ==========================================
+backend/target/
+backend/build/
+backend/.mvn/
+backend/mvnw
+backend/mvnw.cmd
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs Spring Boot
+backend/logs/
+*.log
+
+# ==========================================
+# 3. FRONTEND : REACT / VITE / NODE
+# ==========================================
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.nx/
+frontend/.husky/
+
+# Logs Node / NPM
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnpm-debug.log*
+
+# ==========================================
+# 4. DOCKER & ENVIRONNEMENT / SECRETS
+# ==========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Volume local MySQL (si utilisé en local)
+.data/
