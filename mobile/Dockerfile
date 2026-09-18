@@ -1,5 +1,5 @@
 # Étape 1 : Compilation de l'application Flutter Web
-FROM ghcr.io/cirrusci/flutter:3.22.0 AS builder
+FROM ghcr.io/flutter/flutter:3.22.0 AS builder
 WORKDIR /app
 COPY pubspec.yaml pubspec.lock ./
 RUN flutter pub get
