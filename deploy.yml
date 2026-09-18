@@ -1,0 +1,173 @@
+name: CI/CD Pipeline - Task Manager
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # ==========================================
+  # JOB 1 : VERIFICATION DU CODE
+  # ==========================================
+  test-and-lint:
+    name: Verification & Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # --- Verification Backend ---
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Compile Backend
+        run: |
+          cd backend
+          mvn clean package -DskipTests
+
+      # --- Verification Frontend ---
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Frontend Dependencies & Build
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      # --- Verification Mobile ---
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Check Mobile Dependencies
+        run: |
+          cd mobile
+          flutter pub get
+
+  # ==========================================
+  # JOB 2 : BUILD & PUSH DOCKER IMAGES
+  # ==========================================
+  build-and-push:
+    name: Build & Push Docker Images
+    needs: test-and-lint
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # --- Build & Push Backend ---
+      - name: Build and Push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/taskmanager-backend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/taskmanager-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- Build & Push Frontend ---
+      - name: Build and Push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/taskmanager-frontend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/taskmanager-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- Build & Push Mobile ---
+      - name: Build and Push Mobile Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./mobile
+          file: ./mobile/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/taskmanager-mobile:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/taskmanager-mobile:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ==========================================
+  # JOB 3 : DEPLOIEMENT GOOGLE CLOUD RUN
+  # ==========================================
+  deploy-gcp:
+    name: Deploy Services to Google Cloud Run
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # --- Deploy Backend ---
+      - name: Deploy Backend to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: taskmanager-backend
+          image: ${{ secrets.DOCKERHUB_USERNAME }}/taskmanager-backend:latest
+          region: europe-west1
+          flags: '--allow-unauthenticated'
+          env_vars: |
+            SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}
+            SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}
+            SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+
+      # --- Deploy Frontend ---
+      - name: Deploy Frontend to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: taskmanager-frontend
+          image: ${{ secrets.DOCKERHUB_USERNAME }}/taskmanager-frontend:latest
+          region: europe-west1
+          flags: '--allow-unauthenticated'
+
+      # --- Deploy Mobile Web ---
+      - name: Deploy Mobile Web to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: taskmanager-mobile
+          image: ${{ secrets.DOCKERHUB_USERNAME }}/taskmanager-mobile:latest
+          region: europe-west1
+          flags: '--allow-unauthenticated'
