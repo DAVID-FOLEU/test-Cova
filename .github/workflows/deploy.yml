@@ -9,9 +9,9 @@ on:
       - main
 
 jobs:
-  # ==========================================
+
   # JOB 1 : VERIFICATION DU CODE
-  # ==========================================
+
   test-and-lint:
     name: Verification & Unit Tests
     runs-on: ubuntu-latest
@@ -34,10 +34,10 @@ jobs:
           mvn clean package -DskipTests
 
       # --- Verification Frontend ---
-      - name: Set up Node.js 20
+      - name: Set up Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -58,9 +58,8 @@ jobs:
           cd mobile
           flutter pub get
 
-  # ==========================================
-  # JOB 2 : BUILD & PUSH DOCKER IMAGES
-  # ==========================================
+  # JOB 2 : BUILD & PUSH DOCKER IMAGES (Backend & Frontend)
+
   build-and-push:
     name: Build & Push Docker Images
     needs: test-and-lint
@@ -109,24 +108,11 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # --- Build & Push Mobile ---
-      - name: Build and Push Mobile Image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./mobile
-          file: ./mobile/Dockerfile
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/taskmanager-mobile:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/taskmanager-mobile:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
-  # ==========================================
-  # JOB 3 : DEPLOIEMENT GOOGLE CLOUD RUN
-  # ==========================================
-  deploy-gcp:
-    name: Deploy Services to Google Cloud Run
+  # JOB 3 : DEPLOIEMENT GCP & FIREBASE
+
+  deploy:
+    name: Deploy Services to GCP & Firebase Hosting
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -135,12 +121,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      # --- Authentification Google Cloud ---
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # --- Deploy Backend ---
+      # --- Deploy Backend to Cloud Run ---
       - name: Deploy Backend to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
@@ -154,7 +141,7 @@ jobs:
             SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}
             JWT_SECRET=${{ secrets.JWT_SECRET }}
 
-      # --- Deploy Frontend ---
+      # --- Deploy Frontend to Cloud Run ---
       - name: Deploy Frontend to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
@@ -163,11 +150,22 @@ jobs:
           region: europe-west1
           flags: '--allow-unauthenticated'
 
-      # --- Deploy Mobile Web ---
-      - name: Deploy Mobile Web to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v2
+      # --- Build & Deploy Mobile Web to Firebase Hosting ---
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          service: taskmanager-mobile
-          image: ${{ secrets.DOCKERHUB_USERNAME }}/taskmanager-mobile:latest
-          region: europe-west1
-          flags: '--allow-unauthenticated'
+          channel: 'stable'
+
+      - name: Build Flutter Web
+        run: |
+          cd mobile
+          flutter pub get
+          flutter build web --release
+
+      - name: Deploy Mobile Web to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.GCP_SA_KEY }}'
+          channelId: live
+          entryPoint: ./mobile
