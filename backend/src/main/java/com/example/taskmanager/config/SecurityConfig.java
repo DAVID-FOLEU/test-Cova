@@ -45,6 +45,7 @@ public class SecurityConfig {
 
         // Origines autorisées (Frontend Vite / React / Flutter Web)
         configuration.setAllowedOrigins(List.of(
+                "https://test-cova.vercel.app",
                 "http://localhost:5173",
                 "http://localhost:3000",
                 "http://localhost:53118",
