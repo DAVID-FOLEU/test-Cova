@@ -15,23 +15,24 @@ import 'package:flutter/foundation.dart';
 const String _envUrl = String.fromEnvironment('BACKEND_URL');
 
 String get apiBaseUrl {
-  if (_envUrl.isNotEmpty) {
-    return _envUrl;
-  }
-
-  // Production (Web ou Mobile compilé en release)
+  // Priorité absolue à la production buildée en release
   if (kReleaseMode) {
     return 'https://test-cova-production.up.railway.app/api';
   }
 
+  // Sinon si _envUrl est explicitement défini et non vide
+  if (_envUrl.trim().isNotEmpty) {
+    return _envUrl.trim();
+  }
+
   // Développement local
   if (kIsWeb) {
-    return 'http://localhost:8080/api'; // Pour Chrome / Web local
+    return 'http://localhost:8080/api';
   }
   if (defaultTargetPlatform == TargetPlatform.android) {
-    return 'http://10.0.2.2:8080/api'; // Pour l'émulateur Android
+    return 'http://10.0.2.2:8080/api';
   }
-  return 'http://localhost:8080/api'; // iOS / Desktop local
+  return 'http://localhost:8080/api';
 }
 
 void main() {
